@@ -4,7 +4,7 @@
 
 A small **local-first Python command-line utility** for recording automation run outcomes as JSON Lines (`.jsonl`) and generating readable Markdown summaries. It does not connect to GitHub, collect telemetry, or make network requests.
 
-**Version:** v0.2.0. Not intended as a secure audit ledger, secret store, or central production logging service.
+**Version:** v0.3.0 candidate (pull request, not yet released). Not intended as a secure audit ledger, secret store, or central production logging service.
 
 ## Requirements
 
@@ -32,6 +32,22 @@ The `add` command appends one JSON object per line; `report` reads the log and p
 
 Optional `--timestamp` must use ISO 8601 and include a timezone, e.g. `2026-11-01T10:00:00Z`. The default is current UTC. `--duration-ms` must be a finite non-negative number. Status is one of `success`, `failed`, or `skipped`.
 
+## New in v0.3.0
+
+Export CSV for Excel (new file only):
+
+```bash
+python -m automation_run_log report --file examples/sample_runs.jsonl --format csv --output results.csv
+```
+
+Filter by inclusive UTC dates:
+
+```bash
+python -m automation_run_log report --file examples/sample_runs.jsonl --from 2026-11-01 --to 2026-11-01
+```
+
+Markdown output now includes a **Failed runs** section. CSV exports include timestamp, task, status and duration_ms columns. Saved CSV files use UTF-8 BOM for Excel and prefix formula-like fields with an apostrophe to reduce spreadsheet formula injection risks. Date filters compare the timestamp in UTC, including offset conversion. Always review untrusted data before opening it in a spreadsheet.
+
 ## Example JSONL record
 
 ```json
@@ -57,6 +73,7 @@ python -m unittest discover -s tests -v
 - [Contributing guidelines](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 - [v0.2.0 release notes](RELEASE_NOTES_v0.2.0.md)
+- [v0.3.0 draft notes](RELEASE_NOTES_v0.3.0_DRAFT.md)
 
 ## Licence
 

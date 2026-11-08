@@ -1,7 +1,9 @@
 """Local JSON Lines automation run logging and Markdown reporting."""
 
 import argparse
-from datetime import datetime, timezone
+import csv
+from datetime import date, datetime, timezone
+import io
 import json
 import math
 from pathlib import Path
@@ -40,7 +42,6 @@ def load(path):
             if not line.strip():
                 continue
             try:
-                # parse_constant rejects non-standard JSON NaN and Infinity literals.
                 value = json.loads(line, parse_constant=lambda x: (_ for _ in ()).throw(ValueError(f"non-JSON constant {x}")))
                 records.append(validate(value))
             except (ValueError, TypeError) as exc:
@@ -52,13 +53,57 @@ def markdown_cell(value):
     """Render untrusted text as a single literal Markdown table cell."""
     text = str(value).replace("\\", "\\\\").replace("|", "\\|")
     text = re.sub(r"[\r\n\t\x00-\x1f\x7f]", " ", text)
-    for token in ("\x60", "*", "_", "[", "]", "<", ">", "!", "~"):
+    for token in ("`", "*", "_", "[", "]", "<", ">", "!", "~"):
         text = text.replace(token, "\\" + token)
     return text
 
 
+def parse_date(value):
+    """Accept only YYYY-MM-DD; reject partial or non-ISO date values."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise ValueError("dates must use YYYY-MM-DD")
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("invalid calendar date") from exc
+
+
+def filter_dates(records, from_date=None, to_date=None):
+    """Filter by inclusive UTC date, not by an input timestamp's local offset."""
+    start = parse_date(from_date) if from_date is not None else None
+    end = parse_date(to_date) if to_date is not None else None
+    if start and end and start > end:
+        raise ValueError("--from must be on or before --to")
+    selected = []
+    for record in records:
+        checked = validate(record)
+        utc_date = datetime.fromisoformat(checked["timestamp"].replace("Z", "+00:00")).astimezone(timezone.utc).date()
+        if (start is None or utc_date >= start) and (end is None or utc_date <= end):
+            selected.append(checked)
+    return selected
+
+
+def csv_cell(value):
+    """Keep Excel from evaluating formula-looking data as spreadsheet code."""
+    text = str(value)
+    if text.lstrip().startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r", "\n")):
+        return "'" + text
+    return text
+
+
+def export_csv(records):
+    """Write a standard CSV table with consistent columns and escaped fields."""
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(["timestamp", "task", "status", "duration_ms"])
+    for record in records:
+        row = validate(record)
+        writer.writerow([csv_cell(row["timestamp"]), csv_cell(row["task"]), csv_cell(row["status"]), row.get("duration_ms", "")])
+    return output.getvalue()
+
+
 def summarize(records):
-    """Build an inspectable Markdown report from validated run records."""
+    """Build an inspectable Markdown report, highlighting failed runs."""
     checked = [validate(record) for record in records]
     counts = {status: sum(row["status"] == status for row in checked) for status in STATUSES}
     durations = [row["duration_ms"] for row in checked if "duration_ms" in row]
@@ -74,6 +119,14 @@ def summarize(records):
     lines += ["", "## Runs", "", "| Timestamp | Task | Status |", "| --- | --- | --- |"]
     for row in checked:
         lines.append(f"| {markdown_cell(row['timestamp'])} | {markdown_cell(row['task'])} | {markdown_cell(row['status'])} |")
+    failures = [row for row in checked if row["status"] == "failed"]
+    lines += ["", "## Failed runs", ""]
+    if failures:
+        lines += ["| Timestamp | Task |", "| --- | --- |"]
+        for row in failures:
+            lines.append(f"| {markdown_cell(row['timestamp'])} | {markdown_cell(row['task'])} |")
+    else:
+        lines.append("No failed runs in the selected period.")
     return "\n".join(lines) + "\n"
 
 
@@ -88,7 +141,10 @@ def main(argv=None):
     add.add_argument("--timestamp", help="ISO 8601 with timezone; default: current UTC")
     report = commands.add_parser("report", help="Summarize a JSONL file as Markdown")
     report.add_argument("--file", required=True)
-    report.add_argument("--output", help="Markdown output file; default: stdout")
+    report.add_argument("--output", help="New output file; default: stdout")
+    report.add_argument("--format", choices=("markdown", "csv"), default="markdown", help="Output format; default: markdown")
+    report.add_argument("--from", dest="from_date", help="Inclusive UTC date (YYYY-MM-DD)")
+    report.add_argument("--to", dest="to_date", help="Inclusive UTC date (YYYY-MM-DD)")
     args = parser.parse_args(argv)
     try:
         if args.command == "add":
@@ -99,7 +155,7 @@ def main(argv=None):
             }
             if args.duration_ms is not None:
                 record["duration_ms"] = args.duration_ms
-            validate(record)  # Validate before creating or altering any file.
+            validate(record)
             destination = Path(args.file)
             destination.parent.mkdir(parents=True, exist_ok=True)
             with destination.open("a", encoding="utf-8") as handle:
@@ -110,10 +166,11 @@ def main(argv=None):
             output = Path(args.output) if args.output else None
             if output is not None and source.resolve() == output.resolve():
                 raise ValueError("output must differ from the source log file")
-            rendered = summarize(load(source))
+            records = filter_dates(load(source), args.from_date, args.to_date)
+            rendered = export_csv(records) if args.format == "csv" else summarize(records)
             if output is not None:
-                # Do not silently create folders or overwrite a report.
-                with output.open("x", encoding="utf-8") as handle:
+                encoding = "utf-8-sig" if args.format == "csv" else "utf-8"
+                with output.open("x", encoding=encoding, newline="") as handle:
                     handle.write(rendered)
                 print(f"Report written to {output}")
             else:
