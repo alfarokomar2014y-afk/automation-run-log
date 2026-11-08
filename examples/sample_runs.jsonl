@@ -1,0 +1,3 @@
+{"timestamp":"2026-11-01T08:00:00Z","task":"daily-backup-check","status":"success","duration_ms":1200}
+{"timestamp":"2026-11-01T09:00:00Z","task":"sample-data-validation","status":"failed","duration_ms":450}
+{"timestamp":"2026-11-01T10:00:00Z","task":"optional-cleanup","status":"skipped"}
