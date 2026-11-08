@@ -1,5 +1,7 @@
 # automation-run-log
 
+[![Python tests](https://github.com/alfarokomar2014y-afk/automation-run-log/actions/workflows/tests.yml/badge.svg)](https://github.com/alfarokomar2014y-afk/automation-run-log/actions/workflows/tests.yml)
+
 A small **local-first Python command-line utility** for recording automation run outcomes as JSON Lines (`.jsonl`) and generating readable Markdown summaries. It does not connect to GitHub, collect telemetry, or make network requests.
 
 **Version:** v0.2.0. Not intended as a secure audit ledger, secret store, or central production logging service.
@@ -49,6 +51,12 @@ python -m unittest discover -s tests -v
 - A malformed record stops reporting and identifies its line number; the original log is left unchanged.
 - Files are local and not tamper-evident or transaction-safe for multiple concurrent writers.
 - Markup in task names is escaped in Markdown tables, but this does not make logging untrusted information safe for other contexts.
+
+## Community and release notes
+
+- [Contributing guidelines](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+- [v0.2.0 release notes](RELEASE_NOTES_v0.2.0.md)
 
 ## Licence
 
