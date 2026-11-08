@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.3.0] - Unreleased
+
+- CSV export suitable for Excel, with basic spreadsheet formula guards.
+- Inclusive UTC date filters using --from and --to.
+- Dedicated Markdown failed-runs section.
+- 18 additional unit tests (37 total).
+
 ## [0.2.0] - 2026-11-08
 
 Initial public release candidate.
